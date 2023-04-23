@@ -1,11 +1,10 @@
 import os
 import tkinter as tk
 from tkinter import ttk
-from tkinter import *
 import threading
 import time
 from tkinter import messagebox, filedialog
-import enchant
+import enchant #To use this library it was necessary to install it in our python using the command "pip install pyenchant".
 import re
 
 class TextEditor:
@@ -58,7 +57,7 @@ class TextEditor:
         self.replace_entry = tk.Entry(root)
         self.replace_entry.pack(side="top", padx=10, pady=5)
 
-        self.replace_button = Button(self.root, text="Replace", command=self.replace_text)
+        self.replace_button =  tk.Button(self.root, text="Replace", command=self.replace_text)
         self.replace_button.pack(side="top", padx=10, pady=5)
 
         # Time in seconds between each autosave
@@ -84,6 +83,7 @@ class TextEditor:
         root.protocol("WM_DELETE_WINDOW", self.threadCheckSpellingStop)
         # Agregamos el key listener
         self.text.bind("<KeyRelease>", self.update_counts)
+
 
 
     def set_light_theme(self):
@@ -146,16 +146,24 @@ class TextEditor:
         self.root.destroy()
 
     def calculate_num_letters(self, text):
+        """
+        The above code defines functions to calculate the number of letters and words in a given text, and
+        updates the corresponding labels in a GUI, while also creating threads to calculate the most common
+        word and automatically save the text.
+        
+        :param text: The text to be analyzed for calculating the number of letters, number of words, and the
+        most common word
+        """
         """counts the number of letters in the text received as a parameter 
         (ignoring blanks) and then updates the num_letters_label tag to 
         display the number of letters in the GUI.
         Args:
             text (String): the text to be analyzed
         """
-        letters_only = re.sub(r'[^a-zA-Z]', '', text)
-        num_letters = len(letters_only)
+        exclude = [ ' ','.', ',', ';', ':', '!', '¡', '?', '¿', '"', "'", '(', ')', '[', ']', '{', '}', '-', '_', '+', '=', '*', '/', '<', '>', '\\', '|', '@', '#', '$', '%', '^', '&', '`', '~']
+        num_letters = len([ch for ch in text if ch not in exclude])
         self.num_letters_label.config(text=f"Number of letters: {num_letters}")
-
+        
     def calculate_num_words(self, text):
         """calculates the number of words in the text provided as an argument.
         converts the text into a list of words using the split() method, 
@@ -164,8 +172,9 @@ class TextEditor:
         Args:
             text (String): the text to be analyzed
         """
-        words_only = re.findall(r'\b[a-zA-Z]+\b', text)
-        num_words = len(words_only)
+        exclude = [ '.', ',', ';', ':', '!','¡', '?','¿', '"', "'", '(', ')', '[', ']', '{', '}', '-', '_', '+', '=', '*', '/', '<', '>', '\\', '|', '@', '#', '$', '%', '^', '&', '`', '~']
+        words = [word for word in text.split() if word not in exclude]
+        num_words = len(words)
         self.num_words_label.config(text=f"Number of words: {num_words}")
 
 
@@ -178,8 +187,6 @@ class TextEditor:
             trigger a statistics update. Defaults to None.
         """
         text = self.text.get("1.0", "end-1c")
-        num_letters = len(text.replace(" ", ""))
-        num_words = len(text.split())
         # Create threads to calculate the number of letters and the number of words
         t1 = threading.Thread(target=self.calculate_num_letters, args=(text,))
         t2 = threading.Thread(target=self.calculate_num_words, args=(text,))
@@ -196,6 +203,9 @@ class TextEditor:
                 file.write(text)
                 
     def calculate_most_common_word(self, text):
+        exclude = [ '.', ',', ';', ':', '!','¡', '?','¿', '"', "'", '(', ')', '[', ']', '{', '}', '-', '_', '+', '=', '*', '/', '<', '>', '\\', '|', '@', '#', '$', '%', '^', '&', '`', '~']
+        for e in exclude:
+            text = text.replace(e, "")
         words = text.split()
         if len(words) == 0: 
             return ""
@@ -213,7 +223,7 @@ class TextEditor:
         self.text.delete("1.0", "end")
 
     def open_file(self):
-        self.filename = filedialog.askopenfilename(filetypes=[("Archivos de Texto", "*.txt"), ("Todos los archivos", "*.*")])
+        self.filename = filedialog.askopenfilename(filetypes=[("Archivos de Texto", ".txt"), ("Todos los archivos", ".*")])
         if self.filename:
             with open(self.filename, "r") as file:
                 text = file.read()
@@ -227,53 +237,54 @@ class TextEditor:
         if self.filename:
             with open(self.filename, "w") as file:
                 file.write(self.text.get("1.0", "end"))
+            self.filename_label.config(text=os.path.basename(self.filename))
         else:
             self.save_file_as()
 
     def auto_save_worker(self):
         while True:
-            # Wait for auto-save time
+            # Esperar el tiempo de auto-guardado
             time.sleep(self.auto_save_interval)
 
-            # Save content to file
+            # Guardar el contenido en el archivo
             self.save_file()
 
 
     def search_thread(self):
-        # Get the text to search for
+        # Obtener el texto a buscar
         search_text = self.search_entry.get()
 
-        # If there is no text to search, do nothing
+        # Si no hay texto a buscar, no hacer nada
         if not search_text:
             return
 
-        # Start a thread to search the text in the background
+        # Iniciar un hilo para buscar el texto en segundo plano
         threading.Thread(target=self.search_text, args=(search_text,)).start()
 
     def search_text(self, search_text):
-        # Remove any previous highlights
+        # Eliminar cualquier resaltado anterior
         self.text.tag_remove(self.highlight_tag.get(), "1.0", tk.END)
 
-        # get all text
+        # Obtener todo el texto
         text = self.text.get("1.0", tk.END)
 
-        # Find all occurrences of the text and highlight them
+        # Buscar todas las ocurrencias del texto y resaltarlas
         start = "1.0"
         while True:
-            # Find the next occurrence of the text
+            # Buscar la próxima ocurrencia del texto
             start = self.text.search(search_text, start, tk.END)
 
-            # If no more occurrences were found, exit the loop
+            # Si no se encontró ninguna ocurrencia más, salir del bucle
             if not start:
                 break
 
-            # highlight occurrence
+            # Resaltar la ocurrencia
             end = f"{start}+{len(search_text)}c"
             self.text.tag_add(self.highlight_tag.get(), start, end)
 
-            # Move the starting point to find the next occurrence
+            # Mover el punto de inicio para buscar la siguiente ocurrencia
             start = end
-    
+            
     def replace_text(self):
         """searches for the word entered in the search field and replaces it with the word entered in the replace field.
         """
@@ -302,10 +313,13 @@ class TextEditor:
 
     def show_most_common_word(self):
         text = self.text.get("1.0", "end-1c")
-        words = text.split()
-        if len(words) == 0:
+        exclude = [ '.', ',', ';', ':', '!','¡', '?','¿', '"', "'", '(', ')', '[', ']', '{', '}', '-', '_', '+', '=', '*', '/', '<', '>', '\\', '|', '@', '#', '$', '%', '^', '&', '`', '~']
+        for e in exclude:
+            text = text.replace(e, "")
+        if len(text) == 0:
             messagebox.showinfo("Most common word", "No text to parse.")
             return
+        words = text.split()
         counter = {}
         for word in words:
             counter[word] = counter.get(word, 0) + 1
@@ -314,7 +328,7 @@ class TextEditor:
 
 
     def save_file_as(self):
-        self.filename = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+        self.filename = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text Files", ".txt"), ("All Files", ".*")])
         if self.filename:
             with open(self.filename, "w") as file:
                 file.write(self.text.get("1.0", "end"))
@@ -323,7 +337,7 @@ class TextEditor:
                 self.auto_save_thread.start()
 
     def exit(self):
-        if messagebox.askyesno("Exit" ,"Are you sure you want to get out?"):
+        if messagebox.showinfo("Exit" ,"Are you sure you want to get out?"):
             self.root.destroy()
 
 if __name__ == "__main__":
