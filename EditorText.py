@@ -1,10 +1,12 @@
 import os
 import tkinter as tk
 from tkinter import ttk
+from tkinter import *
 import threading
 import time
 from tkinter import messagebox, filedialog
-#import enchant
+import enchant
+import re
 
 class TextEditor:
     """
@@ -22,7 +24,6 @@ class TextEditor:
     
     def __init__(self, root):
         """Default constructor.
-
         Args:
             root (Tk): The root argument is the Tkinter main window object.
         """
@@ -42,6 +43,7 @@ class TextEditor:
         self.search_label.pack(side="top", padx=10, pady=5)
         self.search_entry = tk.Entry(self.root)
         self.search_entry.pack(side="top", padx=10, pady=5)
+        
         self.search_button = tk.Button(self.root, text="Search", command=self.search_thread)
         self.search_button.pack(side="top", padx=10, pady=5)
 
@@ -50,6 +52,14 @@ class TextEditor:
         self.text.tag_config(self.highlight_tag.get(), background="yellow")
 
         self.stop_event = threading.Event()
+
+        #Buttons replace
+
+        self.replace_entry = tk.Entry(root)
+        self.replace_entry.pack(side="top", padx=10, pady=5)
+
+        self.replace_button = Button(self.root, text="Replace", command=self.replace_text)
+        self.replace_button.pack(side="top", padx=10, pady=5)
 
         # Time in seconds between each autosave
         self.auto_save_interval = 10
@@ -109,8 +119,13 @@ class TextEditor:
             # obtener texto
             words = self.text.get("1.0", "end-1c").split()
             #filtra las palabras que no están correctamente escritas, utilizando un diccionario para realizar la verificación de ortografía.
-            misspelled = [word for word in words if not self.dictionary.check(word)]
-            
+            misspelled = []
+            for word in words:
+                if re.search("[\W_]", word):
+                        word  = word[:-1]
+                if word and not self.dictionary.check(word):
+                    misspelled.append(word)
+
             #resaltar palabras mal escritas
             self.text.tag_remove("misspelled", "1.0", "end")
             for word in misspelled:
@@ -134,11 +149,11 @@ class TextEditor:
         """counts the number of letters in the text received as a parameter 
         (ignoring blanks) and then updates the num_letters_label tag to 
         display the number of letters in the GUI.
-
         Args:
             text (String): the text to be analyzed
         """
-        num_letters = len(text.replace(" ", ""))
+        letters_only = re.sub(r'[^a-zA-Z]', '', text)
+        num_letters = len(letters_only)
         self.num_letters_label.config(text=f"Number of letters: {num_letters}")
 
     def calculate_num_words(self, text):
@@ -146,18 +161,17 @@ class TextEditor:
         converts the text into a list of words using the split() method, 
         and then counts the number of items in the list using the len() function. 
         It then updates the num_words_label in the GUI with the number of words counted.
-
         Args:
             text (String): the text to be analyzed
         """
-        num_words = len(text.split())
+        words_only = re.findall(r'\b[a-zA-Z]+\b', text)
+        num_words = len(words_only)
         self.num_words_label.config(text=f"Number of words: {num_words}")
 
 
     def update_counts(self, event=None):
         """updates the statistics of characters, words and the most common 
         word in the word processor.
-
         Args:
             event (self, optional): event is optional and defaults to None. 
             It is used to detect events occurring in the application that may 
@@ -218,48 +232,73 @@ class TextEditor:
 
     def auto_save_worker(self):
         while True:
-            # Esperar el tiempo de auto-guardado
+            # Wait for auto-save time
             time.sleep(self.auto_save_interval)
 
-            # Guardar el contenido en el archivo
+            # Save content to file
             self.save_file()
 
 
     def search_thread(self):
-        # Obtener el texto a buscar
+        # Get the text to search for
         search_text = self.search_entry.get()
 
-        # Si no hay texto a buscar, no hacer nada
+        # If there is no text to search, do nothing
         if not search_text:
             return
 
-        # Iniciar un hilo para buscar el texto en segundo plano
+        # Start a thread to search the text in the background
         threading.Thread(target=self.search_text, args=(search_text,)).start()
 
     def search_text(self, search_text):
-        # Eliminar cualquier resaltado anterior
+        # Remove any previous highlights
         self.text.tag_remove(self.highlight_tag.get(), "1.0", tk.END)
 
-        # Obtener todo el texto
+        # get all text
         text = self.text.get("1.0", tk.END)
 
-        # Buscar todas las ocurrencias del texto y resaltarlas
+        # Find all occurrences of the text and highlight them
         start = "1.0"
         while True:
-            # Buscar la próxima ocurrencia del texto
+            # Find the next occurrence of the text
             start = self.text.search(search_text, start, tk.END)
 
-            # Si no se encontró ninguna ocurrencia más, salir del bucle
+            # If no more occurrences were found, exit the loop
             if not start:
                 break
 
-            # Resaltar la ocurrencia
+            # highlight occurrence
             end = f"{start}+{len(search_text)}c"
             self.text.tag_add(self.highlight_tag.get(), start, end)
 
-            # Mover el punto de inicio para buscar la siguiente ocurrencia
+            # Move the starting point to find the next occurrence
             start = end
-
+    
+    def replace_text(self):
+        """searches for the word entered in the search field and replaces it with the word entered in the replace field.
+        """
+        query = self.search_entry.get()
+        replace_with = self.replace_entry.get()
+        if query:
+            if not replace_with:
+                messagebox.showwarning("Empty replace field", "Please enter a replacement term.")
+                return
+            start = "1.0"
+            while True:
+                pos = self.text.search(query, start, "end", nocase=1)
+                if not pos:
+                    messagebox.showinfo("End of document", "No more occurrences found.")
+                    break
+                end = f"{pos}+{len(query)}c"
+                self.text.delete(pos, end)
+                self.text.insert(pos, replace_with)
+                start = pos
+                self.text.mark_set("insert", pos)
+                self.text.see("insert")
+                self.text.focus()
+        else:
+            messagebox.showwarning("Empty search field", "Please enter a search term.")
+    
 
     def show_most_common_word(self):
         text = self.text.get("1.0", "end-1c")
@@ -284,7 +323,7 @@ class TextEditor:
                 self.auto_save_thread.start()
 
     def exit(self):
-        if messagebox.askyesno("Get out," "Are you sure you want to get out?"):
+        if messagebox.askyesno("Exit" ,"Are you sure you want to get out?"):
             self.root.destroy()
 
 if __name__ == "__main__":
@@ -317,4 +356,3 @@ if __name__ == "__main__":
 
     root.config(menu=menu_bar)
     root.mainloop()
-
