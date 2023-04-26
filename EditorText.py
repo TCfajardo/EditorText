@@ -57,7 +57,7 @@ class TextEditor:
         self.replace_entry = tk.Entry(root)
         self.replace_entry.pack(side="top", padx=10, pady=5)
 
-        self.replace_button =  tk.Button(self.root, text="Replace", command=self.replace_text)
+        self.replace_button = tk.Button(self.root, text="Replace", command=self.replace_text)
         self.replace_button.pack(side="top", padx=10, pady=5)
 
         # Time in seconds between each autosave
@@ -74,16 +74,15 @@ class TextEditor:
         
         self.mode = "ligth"  # default mode ligth
 
-        # Crear una etiqueta para resaltar las palabras mal escritas
+        # Create a tag to highlight misspelled words
         self.text.tag_configure("misspelled", background="pink")
-        # Crear un hilo para realizar la verificación ortográfica 
+        # Create a thread to perform spell checking
         self.threadCheckSpelling = threading.Thread(target=self.checkSpelling)
         self.threadCheckSpelling.start()
-        # Detener el hilo cuando se cierra la ventana
+        # Stop thread when window closes
         root.protocol("WM_DELETE_WINDOW", self.threadCheckSpellingStop)
-        # Agregamos el key listener
+        # We add the key listener
         self.text.bind("<KeyRelease>", self.update_counts)
-
 
 
     def set_light_theme(self):
@@ -114,11 +113,13 @@ class TextEditor:
         self.num_words_label.configure(bg="#909390", fg="black")
 
     def checkSpelling(self):
+        """ realiza un chequeo ortográfico en un campo de texto.
+        """
         self.dictionary = enchant.Dict("en_US")
         while not self.stop_event.is_set():
-            # obtener texto
+            # get text
             words = self.text.get("1.0", "end-1c").split()
-            #filtra las palabras que no están correctamente escritas, utilizando un diccionario para realizar la verificación de ortografía.
+            #filters out words that are not spelled correctly, using a dictionary to perform a spell check.
             misspelled = []
             for word in words:
                 if re.search("[\W_]", word):
@@ -126,7 +127,7 @@ class TextEditor:
                 if word and not self.dictionary.check(word):
                     misspelled.append(word)
 
-            #resaltar palabras mal escritas
+            #highlight misspelled words
             self.text.tag_remove("misspelled", "1.0", "end")
             for word in misspelled:
                 start = "1.0"
@@ -138,12 +139,20 @@ class TextEditor:
                     self.text.tag_add("misspelled", pos, end)
                     start = end
             
-            # Esperar antes de verificar nuevamente
+            # Wait before checking again
             time.sleep(1)
 
     def threadCheckSpellingStop(self):
+        """Sets the stop event and destroys the root window.
+
+        This method sets the stop event to notify the spelling checker to stop
+        running and destroys the root window to close the application.
+        Returns:
+        None.
+        """
         self.stop_event.set()
         self.root.destroy()
+
 
     def calculate_num_letters(self, text):
         """
@@ -203,27 +212,68 @@ class TextEditor:
                 file.write(text)
                 
     def calculate_most_common_word(self, text):
-        exclude = [ '.', ',', ';', ':', '!','¡', '?','¿', '"', "'", '(', ')', '[', ']', '{', '}', '-', '_', '+', '=', '*', '/', '<', '>', '\\', '|', '@', '#', '$', '%', '^', '&', '`', '~']
+        """Calculates the most common word in the given text and updates the UI.
+        This method processes the given text by removing certain punctuation marks
+        and splitting it into individual words. It then counts the occurrences of
+        each word and returns the most common word. Additionally, it updates the
+        UI by calling the 'update_most_common_word' method with the most common
+        word as an argument.
+
+        Args:
+            text (str): The text to process.
+
+        Returns:
+            str: The most common word in the text, or an empty string if the text
+        contains no words.
+        """
+        # Define a list of punctuation marks to exclude from the text
+        exclude = [ '.', ',', ';', ':', '!','¡', '?','¿', '"', "'", '(', ')','[', ']', '{', '}', '-', '_', '+', '=', '*', '/', '<', '>','\\', '|', '@', '#', '$', '%', '^', '&', '`', '~']
+
+        # Remove the punctuation marks from the text
         for e in exclude:
             text = text.replace(e, "")
+
+        # Split the text into individual words
         words = text.split()
+
+        # If there are no words, return an empty string
         if len(words) == 0: 
             return ""
+
+        # Count the occurrences of each word and find the most common one
         counter = {}
         for word in words:
             counter[word] = counter.get(word, 0) + 1
         most_common_word = max(counter, key=counter.get)
+
+        # Update the UI with the most common word
         self.root.after(0, self.update_most_common_word, most_common_word)
-        
+
+        # Return the most common word
+        return most_common_word
+
     def update_most_common_word(self, most_common_word):
+        """Updates the UI to display the most common word.
+        This method updates the UI by setting the text of the 'most_common_word_label'
+        widget to display the most common word.
+        Args:
+            most_common_word (str): The most common word to display.
+        """
         self.most_common_word_label.config(text=f"Most common word: {most_common_word}")
 
     def new_file(self):
+        """Clears the current text and sets the filename to None.
+        This method clears the current text in the editor and sets the filename to
+        None, indicating that no file is currently open.
+        """
         self.filename = None
         self.text.delete("1.0", "end")
 
+
     def open_file(self):
-        self.filename = filedialog.askopenfilename(filetypes=[("Archivos de Texto", ".txt"), ("Todos los archivos", ".*")])
+        """Opens a file and displays its contents in the editor.
+        """
+        self.filename = filedialog.askopenfilename(filetypes=[("Text files", ".txt"), ("All files", ".*")])
         if self.filename:
             with open(self.filename, "r") as file:
                 text = file.read()
@@ -233,7 +283,12 @@ class TextEditor:
             self.filename_label.config(text=os.path.basename(self.filename))
             self.update_counts(self)
 
+
     def save_file(self):
+        """Saves the current contents to the current file.
+        This method saves the current contents of the editor to the current file.
+        If no file is currently open, this method calls the save_file_as method.
+        """
         if self.filename:
             with open(self.filename, "w") as file:
                 file.write(self.text.get("1.0", "end"))
@@ -241,50 +296,56 @@ class TextEditor:
         else:
             self.save_file_as()
 
+
     def auto_save_worker(self):
+        """Automatically saves the contents of the editor at a set interval.
+        This method is a worker thread that automatically saves the contents of the
+        editor at a set interval. The interval is set by the auto_save_interval
+        attribute.
+        """
         while True:
-            # Esperar el tiempo de auto-guardado
+            # Wait for the auto-save interval
             time.sleep(self.auto_save_interval)
 
-            # Guardar el contenido en el archivo
+            # Save the contents to the file
             self.save_file()
 
 
     def search_thread(self):
-        # Obtener el texto a buscar
+        # Get the text to search for
         search_text = self.search_entry.get()
 
-        # Si no hay texto a buscar, no hacer nada
+        # If there is no text to search, do nothing
         if not search_text:
             return
 
-        # Iniciar un hilo para buscar el texto en segundo plano
+        # Start a thread to search the text in the background
         threading.Thread(target=self.search_text, args=(search_text,)).start()
 
     def search_text(self, search_text):
-        # Eliminar cualquier resaltado anterior
+        # Remove any previous highlights
         self.text.tag_remove(self.highlight_tag.get(), "1.0", tk.END)
 
-        # Obtener todo el texto
+        # get all text
         text = self.text.get("1.0", tk.END)
 
-        # Buscar todas las ocurrencias del texto y resaltarlas
+        # Find all occurrences of the text and highlight them
         start = "1.0"
         while True:
-            # Buscar la próxima ocurrencia del texto
+            # Find the next occurrence of the text
             start = self.text.search(search_text, start, tk.END)
 
-            # Si no se encontró ninguna ocurrencia más, salir del bucle
+            # If no more occurrences were found, exit the loop
             if not start:
                 break
 
-            # Resaltar la ocurrencia
+            # highlight occurrence
             end = f"{start}+{len(search_text)}c"
             self.text.tag_add(self.highlight_tag.get(), start, end)
 
-            # Mover el punto de inicio para buscar la siguiente ocurrencia
+            # Move the starting point to find the next occurrence
             start = end
-            
+    
     def replace_text(self):
         """searches for the word entered in the search field and replaces it with the word entered in the replace field.
         """
@@ -312,6 +373,15 @@ class TextEditor:
     
 
     def show_most_common_word(self):
+        """Shows a message box with the most common word in the text.
+
+        This function extracts the text from the text widget and removes
+        punctuation marks from it. It then splits the text into a list of
+        words and creates a dictionary to count the frequency of each word.
+        The most common word is determined by finding the key with the highest
+        value in the dictionary. A message box is then displayed showing the
+        most common word and the number of times it appears in the text.
+        """
         text = self.text.get("1.0", "end-1c")
         exclude = [ '.', ',', ';', ':', '!','¡', '?','¿', '"', "'", '(', ')', '[', ']', '{', '}', '-', '_', '+', '=', '*', '/', '<', '>', '\\', '|', '@', '#', '$', '%', '^', '&', '`', '~']
         for e in exclude:
@@ -328,25 +398,35 @@ class TextEditor:
 
 
     def save_file_as(self):
+        """
+        Opens a file dialog window and allows the user to save the current text in the Text widget as a file.
+        The file extension is set to .txt by default, but the user can select other file types as well.
+        The method also creates a new thread to save the file automatically.
+        """
         self.filename = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text Files", ".txt"), ("All Files", ".*")])
         if self.filename:
             with open(self.filename, "w") as file:
                 file.write(self.text.get("1.0", "end"))
-                # Crear hilo para guardar automáticamente
+                # Create thread for auto-saving"
                 self.auto_save_thread = threading.Thread(target=self.auto_save_worker, daemon=True)
                 self.auto_save_thread.start()
 
     def exit(self):
+        """_summary_
+        """
         if messagebox.showinfo("Exit" ,"Are you sure you want to get out?"):
             self.root.destroy()
 
 if __name__ == "__main__":
+    # Create the root window for the application
     root = tk.Tk()
     root.title("My word processor")
     root.geometry("800x500")
 
+    # Create an instance of the TextEditor class and pass the root window as argument
     text_editor = TextEditor(root)
-        # Crear el menú
+
+    # Create the menu bar and menus for File, Statistics, and Theme
     menu_bar = tk.Menu(root)
     file_menu = tk.Menu(menu_bar, tearoff=0)
     file_menu.add_command(label="New", command=text_editor.new_file)
@@ -358,7 +438,6 @@ if __name__ == "__main__":
     file_menu.add_command(label="Exit", command=text_editor.exit)
     menu_bar.add_cascade(label="File", menu=file_menu)
 
-    # Crear el menú de estadísticas
     stats_menu = tk.Menu(menu_bar, tearoff=0)
     stats_menu.add_command(label="Most common word", command=text_editor.show_most_common_word)
     menu_bar.add_cascade(label="Statistics", menu=stats_menu)
@@ -368,5 +447,8 @@ if __name__ == "__main__":
     theme_menu.add_command(label="Light mode", command=text_editor.set_light_theme)
     theme_menu.add_command(label="Dark mode ", command=text_editor.set_dark_theme)
 
+    # Configure the root window to use the menu bar
     root.config(menu=menu_bar)
+
+    # Start the main event loop
     root.mainloop()
